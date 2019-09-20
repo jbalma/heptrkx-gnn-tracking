@@ -86,6 +86,9 @@ def get_datasets(input_dir, n_train, n_valid, real_weight=1.0):
     print("original train_data:",train_data[-1])
     sorted_edge_idx = [int(e[0]) for e in edges_sorted]
     data.reorder_items(sorted_edge_idx)
+
+    # Split into train and validation
+    train_data, valid_data = random_split(data, [n_train, n_valid])
     print("sorted train_data:", train_data[-1])
     #train_data = train_data[sorted_edge_idx]
     return train_data, valid_data
