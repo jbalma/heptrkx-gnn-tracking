@@ -67,6 +67,9 @@ class GNNBaseTrainer(object):
         # Distribute the optimizer if requested
         if self.distributed_mode == 'cray':
             from distributed.cray import distribute_optimizer
+            #import larc_optimizer as larc_opt
+            #optim = torch.optim.Adam(model.parameters(), lr=...)
+            #optimizer = larc_opt.LARC(optimizer)
             optimizer = distribute_optimizer(optimizer)
 
         # Prepare the learning rate scheduler
