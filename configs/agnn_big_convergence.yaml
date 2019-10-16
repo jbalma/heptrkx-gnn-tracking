@@ -6,10 +6,10 @@ trainer:
 data:
     name: hitgraphs_sparse
     input_dir: ${INPUT_DIR}
-    n_train: 1024 #32768
-    n_valid: 1024
+    n_train: 32768
+    n_valid: 4096
     real_weight: 3. #5.0   # 0.5 / 0.1
-    batch_size: 1
+    batch_size: 2
     n_workers: 0
 
 model:
@@ -22,13 +22,13 @@ model:
 
 optimizer:
     name: Adam
-    learning_rate: 0.001
+    learning_rate: 0.0001
     lr_scaling: sqrt
     lr_warmup_epochs: 5
     lr_decay_schedule:
-        - {start_epoch: 5, end_epoch: 10, factor: 0.1}
-        - {start_epoch: 10, end_epoch: 20, factor: 0.01}
+        - {start_epoch: 10, end_epoch: 20, factor: 0.1}
+        - {start_epoch: 20, end_epoch: 30, factor: 0.01}
 
 training:
-    n_epochs: 3
+    n_epochs: 40
 #    n_epochs: 96

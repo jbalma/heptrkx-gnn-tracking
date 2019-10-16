@@ -32,6 +32,7 @@ def parse_args():
     add_arg('--rank-gpu', action='store_true')
     add_arg('--resume', action='store_true', help='Resume from last checkpoint')
     add_arg('--show-config', action='store_true')
+    add_arg('-l', '--load-balance', choices=['True', 'False'])
     add_arg('--interactive', action='store_true')
     add_arg('--output-dir', help='override output_dir setting')
     return parser.parse_args()
@@ -98,6 +99,7 @@ def main():
     config_logging(verbose=args.verbose, output_dir=config['output_dir'],
                    append=args.resume, rank=rank)
     logging.info('Initialized rank %i out of %i', rank, n_ranks)
+
     if args.show_config and (rank == 0):
         logging.info('Command line config: %s' % args)
     if rank == 0:
@@ -112,13 +114,22 @@ def main():
 
     # Load the datasets
     is_distributed = (args.distributed is not None)
+    use_LB = False 
+    if(args.distributed is not None):
+        if args.load_balance=='True':
+            print("Load-Balance enabled.")
+            use_LB=True 
+        else:
+            print("Load-Balance disabled.")
+            use_LB=False 
+            
     # Workaround because multi-process I/O not working with MPI backend
     if args.distributed in ['ddp-mpi', 'cray']:
         if rank == 0:
             logging.info('Disabling I/O workers because of MPI issue')
         config['data']['n_workers'] = 0
     train_data_loader, valid_data_loader = get_data_loaders(
-        distributed=is_distributed, rank=rank, n_ranks=n_ranks, **config['data'])
+        distributed=is_distributed, rank=rank, n_ranks=n_ranks, **config['data'], load_balance=use_LB)
     logging.info('Loaded %g training samples', len(train_data_loader.dataset))
     if valid_data_loader is not None:
         logging.info('Loaded %g validation samples', len(valid_data_loader.dataset))

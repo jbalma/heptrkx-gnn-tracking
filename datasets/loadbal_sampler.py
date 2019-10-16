@@ -13,6 +13,7 @@ from collections import Counter, OrderedDict
 import random
 import util
 from torch_geometric.data import Batch, NeighborSampler
+from torch.utils.data.distributed import DistributedSampler 
 
 #class Batch():
 #    def __init__(self, traces):
@@ -201,7 +202,7 @@ class OfflineDataset(ConcatDataset):
 
 
 
-class DistributedGraphBatchSampler(Sampler):
+class DistributedGraphBatchSampler(DistributedSampler):
     def __init__(self, offline_dataset, batch_size, shuffle_batches=True, num_buckets=None, shuffle_buckets=True, rank=0, num_replicas=1):
         #if not isinstance(offline_dataset, OfflineDataset):
         #    raise TypeError('Expecting an OfflineDataset instance.')
@@ -209,7 +210,13 @@ class DistributedGraphBatchSampler(Sampler):
             raise RuntimeError('Expecting distributed training.')
         #self._world_size = dist.get_world_size()
         #self._rank = dist.get_rank()
-    
+        self.dataset = offline_dataset  
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.epoch = 0
+        self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / self.num_replicas))
+        self.total_size = self.num_samples * self.num_replicas
+        self.shuffle = shuffle_batches 
         self._world_size = num_replicas 
         self._rank = rank
 
@@ -228,8 +235,10 @@ class DistributedGraphBatchSampler(Sampler):
             num_buckets = len(self._batches) / self._world_size
         self._num_buckets = num_buckets
         self._bucket_size = math.ceil(len(self._batches) / num_buckets)
+
         if self._bucket_size < self._world_size:
             raise RuntimeError('offline_dataset:{}, batch_size:{} and num_buckets:{} imply a bucket_size:{} smaller than world_size:{}'.format(len(offline_dataset), batch_size, num_buckets, self._bucket_size, self._world_size))
+
         # List of buckets, where each bucket is a list of minibatches
         self._buckets = list(util.chunks(self._batches, self._bucket_size))
         # Unify last two buckets if the last bucket is smaller than other buckets
@@ -254,6 +263,8 @@ class DistributedGraphBatchSampler(Sampler):
 
     def __iter__(self):
         self._epoch += 1
+        self.indices = []
+        local_indices = []
         bucket_ids = list(range(len(self._buckets)))
         if self._shuffle_buckets:
             # Shuffle the list of buckets (but not the order of minibatches inside each bucket) at the beginning of each epoch, deterministically based on the epoch number so that all nodes have the same bucket order
@@ -269,13 +280,22 @@ class DistributedGraphBatchSampler(Sampler):
             num_batches = math.floor(len(bucket) / self._world_size)
             # Select a num_batches-sized subset of the current bucket for the current node
             # The part not selected by the current node will be selected by other nodes
-            batches = bucket[self._rank:len(bucket):self._world_size][:num_batches]
+            
+            chunk_size = int(num_batches/(self._num_buckets))
+            local_start = self._rank*chunk_size 
+            local_end   = int(self._rank + 1)*chunk_size 
+            #batches = bucket[self._rank:len(bucket):self._world_size][:num_batches]
+            batches = bucket[local_start:local_end]
             if self._shuffle_batches:
                 # Shuffle the list of minibatches (but not the order trace indices inside each minibatch) selected for the current node
                 np.random.shuffle(batches)
             for batch in batches:
-                print("batch=",batch)
-                yield batch 
+                #print("batch=",batch)
+                #local_indices.append(range(local_start,local_end))
+                      
+                yield batch
+        #self.indices = local_indices
+        #return indices
 
     def __len__(self):
         return len(self._batches)
